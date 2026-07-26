@@ -87,15 +87,9 @@ def generate_request(endpoint, params=None):
         return None
 
 
-def get_events(year, event_code=None, team_number=None):
+def get_events(year):
     """Every event in a season. /v3.0/{season}/events"""
-    params = {}
-    if event_code is not None:
-        params['eventCode'] = event_code
-    if team_number is not None:
-        params['teamNumber'] = team_number
-
-    return generate_request("{}/events".format(year), params=params)
+    return generate_request("{}/events?districtCode=FCH".format(year))
 
 
 def get_event_matches(year, event_code, tournament_level="qual"):

@@ -1,0 +1,9 @@
+requests
+psycopg2-binary
+
+# api layer
+fastapi
+uvicorn[standard]
+
+# statistics backend -- needs a local R install first (brew install r)
+rpy2
