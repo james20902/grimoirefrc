@@ -1,0 +1,5 @@
+async model:
+
+I want disk operations to be async, aka any database queries can scale/live across multiple threads, let's say each process will get up to 5 threads
+
+This number is arbitrary, but generally needs to scale depending on just how fast each computation is per event.
