@@ -8,6 +8,7 @@ from psycopg2.extras import execute_values
 
 
 BASE_URL = "https://frc-api.firstinspires.org/v3.0/"
+BASE_STATBOTICS_URL = "/v3/team_event/{team}/{event}"
 SEASON = 2026
 
 # Every team entry carries an explicit "station" ("Red1" ... "Blue3"). The array
@@ -36,6 +37,16 @@ CREATE TABLE IF NOT EXISTS matches (
     score_blue_foul  INTEGER
 )
 """
+CREATE_TABLE_EPA = """
+CREATE TABLE IF NOT EXISTS events_epas (
+    match_id         TEXT PRIMARY KEY,
+    season           INTEGER NOT NULL,
+    event_code       TEXT NOT NULL,
+    tournament_level TEXT NOT NULL,
+    match_number     INTEGER NOT NULL,
+)
+"""
+
 
 UPSERT_MATCHES = """
 INSERT INTO matches (
@@ -66,9 +77,9 @@ def auth_header():
     return 'Basic {}'.format(base64.b64encode(authorization.encode()).decode())
 
 
-def generate_request(endpoint, params=None):
+def generate_request(base=BASE_URL, endpoint, params=None):
     """GET BASE_URL + endpoint and hand back the decoded json, or None on failure."""
-    url = "{}{}".format(BASE_URL, endpoint)
+    url = "{}{}".format(base, endpoint)
 
     headers = {
         'Authorization': auth_header(),
@@ -110,10 +121,23 @@ def build_match_id(season, event_code, tournament_level, match_number):
     The API never hands back a single combined key, so we glue one together out
     of the season, the event code, and the level/number pair. The season prefix
     keeps the id unique once more than one year is loaded.
-    """
-    level = "qm" if tournament_level.lower().startswith("qual") else "p"
 
-    return "{}{}_{}{}".format(season, event_code.lower(), level, match_number)
+    abide by tba formatting (playoff matches use m<n> up until finals which use f1m<n>)
+    """
+    match tournament_level.lower():
+        case "qual":
+            level = "qm"
+        case "playoff":
+            if match_number < 13:
+                level = "sf" #what the FUCK tba...
+            else:
+                level = "f1m"
+        case _:
+            # This is either a "None" type or "Practice", whatever
+            level = "n"
+
+
+    return "{}{}_{}{}".format(season, event_code.lower(), level, str(match_number) + (if ))
 
 
 def parse_match(season, event_code, match):

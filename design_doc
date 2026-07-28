@@ -3,3 +3,15 @@ async model:
 I want disk operations to be async, aka any database queries can scale/live across multiple threads, let's say each process will get up to 5 threads
 
 This number is arbitrary, but generally needs to scale depending on just how fast each computation is per event.
+
+
+database design:
+
+having something that stores all match data is easy enough, but now I'd like to be able to store a list of epa changes per match. This now begs
+the question, is my table of EPAs gonna use events or teams as the key?
+
+statbotics is able to provide both pre and post match EPA per match, the R backend expects a team->epa mapping vector for a given event. Ultimately I think the wisest choice is to key by event, with each entry containing a team, a list of matches they participated in, and a list of epas hopefully aligning with that.
+
+live event updates:
+
+All events try to run on some public event schedule, I'll have some event manager track what day it is, and at 8:45 I'll poll for the match schedule every 5 minutes. Upon successful acquisition of a match schedule, I'll poll for match data every 2 minutes after expected match end, then 1 minute, keep doing it at one minute until some timeout period probably 10 minutes total in which we go back to polling every 5 minutes as we enter "the event is crazy late" mode
