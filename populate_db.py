@@ -8,7 +8,7 @@ from psycopg2.extras import execute_values
 
 
 BASE_URL = "https://frc-api.firstinspires.org/v3.0/"
-BASE_STATBOTICS_URL = "/v3/team_event/{team}/{event}"
+BASE_STATBOTICS_URL = "https://api-statbotics.iterativerefinement.com/v3/"
 SEASON = 2026
 
 # Every team entry carries an explicit "station" ("Red1" ... "Blue3"). The array
@@ -29,6 +29,18 @@ CREATE TABLE IF NOT EXISTS matches (
     blue1            INTEGER,
     blue2            INTEGER,
     blue3            INTEGER,
+    red1_pre_epa     NUMERIC(6, 2),  -- This shape is intentional! I have no idea if keeping common datatypes next to each other in a record
+    red2_pre_epa     NUMERIC(6, 2),  -- is helpful to the db or not, but statbotics indexes pre and post epa in seperate json entries
+    red3_pre_epa     NUMERIC(6, 2),  -- which means we can use the same list comp that I vibe generated. very cool.
+    blue1_pre_epa    NUMERIC(6, 2),
+    blue2_pre_epa    NUMERIC(6, 2),
+    blue3_pre_epa    NUMERIC(6, 2),
+    red1_post_epa    NUMERIC(6, 2),
+    red2_post_epa    NUMERIC(6, 2),
+    red3_post_epa    NUMERIC(6, 2),
+    blue1_post_epa   NUMERIC(6, 2),
+    blue2_post_epa   NUMERIC(6, 2),
+    blue3_post_epa   NUMERIC(6, 2),
     score_red_final  INTEGER,
     score_red_auto   INTEGER,
     score_red_foul   INTEGER,
@@ -37,21 +49,13 @@ CREATE TABLE IF NOT EXISTS matches (
     score_blue_foul  INTEGER
 )
 """
-CREATE_TABLE_EPA = """
-CREATE TABLE IF NOT EXISTS events_epas (
-    match_id         TEXT PRIMARY KEY,
-    season           INTEGER NOT NULL,
-    event_code       TEXT NOT NULL,
-    tournament_level TEXT NOT NULL,
-    match_number     INTEGER NOT NULL,
-)
-"""
-
 
 UPSERT_MATCHES = """
 INSERT INTO matches (
     match_id, season, event_code, tournament_level, match_number,
     red1, red2, red3, blue1, blue2, blue3,
+    red1_pre_epa, red2_pre_epa, red3_pre_epa, blue1_pre_epa, blue2_pre_epa, blue3_pre_epa,
+    red1_post_epa, red2_post_epa, red3_post_epa, blue1_post_epa, blue2_post_epa, blue3_post_epa,
     score_red_final, score_red_auto, score_red_foul,
     score_blue_final, score_blue_auto, score_blue_foul
 ) VALUES %s
@@ -62,6 +66,18 @@ ON CONFLICT (match_id) DO UPDATE SET
     blue1            = EXCLUDED.blue1,
     blue2            = EXCLUDED.blue2,
     blue3            = EXCLUDED.blue3,
+    red1_pre_epa     = EXCLUDED.red1_pre_epa,
+    red2_pre_epa     = EXCLUDED.red2_pre_epa,
+    red3_pre_epa     = EXCLUDED.red3_pre_epa,
+    blue1_pre_epa    = EXCLUDED.blue1_pre_epa,
+    blue2_pre_epa    = EXCLUDED.blue2_pre_epa,
+    blue3_pre_epa    = EXCLUDED.blue3_pre_epa,
+    red1_post_epa    = EXCLUDED.red1_post_epa,
+    red2_post_epa    = EXCLUDED.red2_post_epa,
+    red3_post_epa    = EXCLUDED.red3_post_epa,
+    blue1_post_epa   = EXCLUDED.blue1_post_epa,
+    blue2_post_epa   = EXCLUDED.blue2_post_epa,
+    blue3_post_epa   = EXCLUDED.blue3_post_epa,
     score_red_final  = EXCLUDED.score_red_final,
     score_red_auto   = EXCLUDED.score_red_auto,
     score_red_foul   = EXCLUDED.score_red_foul,
@@ -77,7 +93,7 @@ def auth_header():
     return 'Basic {}'.format(base64.b64encode(authorization.encode()).decode())
 
 
-def generate_request(base=BASE_URL, endpoint, params=None):
+def generate_request(base=BASE_URL, endpoint="/", params=None):
     """GET BASE_URL + endpoint and hand back the decoded json, or None on failure."""
     url = "{}{}".format(base, endpoint)
 
@@ -100,7 +116,8 @@ def generate_request(base=BASE_URL, endpoint, params=None):
 
 def get_events(year):
     """Every event in a season. /v3.0/{season}/events"""
-    return generate_request("{}/events?districtCode=FCH".format(year))
+    # TODO: This is currently hardcoded for CHS, check and redo
+    return generate_request(endpoint="{}/events?districtCode=FCH".format(year))
 
 
 def get_event_matches(year, event_code, tournament_level="qual"):
@@ -112,7 +129,10 @@ def get_event_matches(year, event_code, tournament_level="qual"):
     """
     params = {'tournamentLevel': tournament_level}
 
-    return generate_request("{}/matches/{}".format(year, event_code), params=params)
+    return generate_request(endpoint="{}/matches/{}".format(year, event_code), params=params)
+
+def get_statbotics_match(match_id):
+    return generate_request(base=BASE_STATBOTICS_URL, endpoint=f"match/{match_id}")
 
 
 def build_match_id(season, event_code, tournament_level, match_number):
@@ -125,38 +145,50 @@ def build_match_id(season, event_code, tournament_level, match_number):
     abide by tba formatting (playoff matches use m<n> up until finals which use f1m<n>)
     """
     match tournament_level.lower():
-        case "qual":
+        case "qualification":
             level = "qm"
         case "playoff":
-            if match_number < 13:
+            if match_number < 14:
                 level = "sf" #what the FUCK tba...
+                match_number = str(match_number) + "m1"
             else:
                 level = "f1m"
+                match_number = match_number % 13
         case _:
             # This is either a "None" type or "Practice", whatever
             level = "n"
 
 
-    return "{}{}_{}{}".format(season, event_code.lower(), level, str(match_number) + (if ))
+    return "{}{}_{}{}".format(season, event_code.lower(), level, str(match_number))
 
 
-def parse_match(season, event_code, match):
-    """Flatten one API match object into a row tuple for the matches table."""
-    teams = {t['station']: t['teamNumber'] for t in match.get('teams', [])}
+def parse_match(match_id, season, event_code, match_data, statbotics_match_data):
+    """Flatten one API match object, plus its statbotics twin, into a row tuple."""
+    teams = {t['station']: t['teamNumber'] for t in match_data.get('teams', [])}
+
+    # statbotics splits pre- and post-match epa into two objects, each keyed by
+    # team number, so a station's epa is a hop through `teams` first. A statbotics
+    # request that failed lands here as None, and a team that never played has no
+    # entry -- both fall through the gets and store as NULL.
+    statbotics_match_data = statbotics_match_data or {}
+    pre_epas = statbotics_match_data.get('pre_epas', {})
+    post_epas = statbotics_match_data.get('epas', {})
 
     return (
-        build_match_id(season, event_code, match['tournamentLevel'], match['matchNumber']),
+        match_id,
         season,
         event_code.upper(),
-        match['tournamentLevel'],
-        match['matchNumber'],
+        match_data['tournamentLevel'],
+        match_data['matchNumber'],
         *(teams.get(station) for station in STATIONS),
-        match.get('scoreRedFinal'),
-        match.get('scoreRedAuto'),
-        match.get('scoreRedFoul'),
-        match.get('scoreBlueFinal'),
-        match.get('scoreBlueAuto'),
-        match.get('scoreBlueFoul'),
+        *(pre_epas.get(str(teams.get(station)), {}).get('epa') for station in STATIONS),
+        *(post_epas.get(str(teams.get(station)), {}).get('epa') for station in STATIONS),
+        match_data.get('scoreRedFinal'),
+        match_data.get('scoreRedAuto'),
+        match_data.get('scoreRedFoul'),
+        match_data.get('scoreBlueFinal'),
+        match_data.get('scoreBlueAuto'),
+        match_data.get('scoreBlueFoul'),
     )
 
 
@@ -221,7 +253,10 @@ if __name__ == "__main__":
                 continue
 
             for match in payload.get('Matches', []):
-                rows.append(parse_match(SEASON, code, match))
+                match_id = build_match_id(SEASON, code, match['tournamentLevel'], match['matchNumber'])
+                print(f"Pulling {match_id}")
+                statbotics_match = get_statbotics_match(match_id)
+                rows.append(parse_match(match_id, SEASON, code, match, statbotics_match))
 
         try:
             stored = store_matches(conn, rows)

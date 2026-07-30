@@ -10,10 +10,17 @@ from contextlib import closing
 import psycopg2
 
 
+# Each team is followed by its own pre/post epa rather than grouping all the
+# epas at the end -- the viewer renders these positionally, and a station's epa
+# is only readable next to the team it belongs to.
 MATCH_COLUMNS = (
     "match_id", "tournament_level", "match_number",
-    "red1", "red2", "red3",
-    "blue1", "blue2", "blue3",
+    "red1", "red1_pre_epa", "red1_post_epa",
+    "red2", "red2_pre_epa", "red2_post_epa",
+    "red3", "red3_pre_epa", "red3_post_epa",
+    "blue1", "blue1_pre_epa", "blue1_post_epa",
+    "blue2", "blue2_pre_epa", "blue2_post_epa",
+    "blue3", "blue3_pre_epa", "blue3_post_epa",
     "score_red_final", "score_red_auto", "score_red_foul",
     "score_blue_final", "score_blue_auto", "score_blue_foul",
 )

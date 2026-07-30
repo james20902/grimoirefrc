@@ -14,4 +14,16 @@ statbotics is able to provide both pre and post match EPA per match, the R backe
 
 live event updates:
 
-All events try to run on some public event schedule, I'll have some event manager track what day it is, and at 8:45 I'll poll for the match schedule every 5 minutes. Upon successful acquisition of a match schedule, I'll poll for match data every 2 minutes after expected match end, then 1 minute, keep doing it at one minute until some timeout period probably 10 minutes total in which we go back to polling every 5 minutes as we enter "the event is crazy late" mode
+All events try to run on some public event schedule, I'll have some event manager track what day it is, and at 8:45 local time I'll poll for the match schedule every 5 minutes. Upon successful acquisition of a match schedule, I'll assign it poll for match data every 2 minutes after expected match end, then 1 minute, keep doing it at one minute until some timeout period probably 10 minutes total in which we go back to polling every 5 minutes as we enter "the event is crazy late"
+
+why am I using a combination of frc events api and statbotics?
+
+I figure during events the frc events api would be hammered less... everyone uses tba right? I assume TBA pulls from frc events so I'd rather share with tba and a couple others instead of fighting everyone else. No clue if this makes sense tbh haha. As for statbotics, the only reason I'm going that route is to have an EPA calculation for priors, 
+
+current failures:
+
+Does not properly handle data from pre-double elimination era(need to add exceptional case to adjust match number)
+
+Can't handle teams that don't play in their match
+
+Can't handle if matches get cancelled

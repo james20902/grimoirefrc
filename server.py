@@ -13,17 +13,27 @@ from urllib.parse import urlparse, parse_qs
 import db
 
 
+# "pre"/"post" are the statbotics epas for the team in the column to their left.
 HEADERS = ("match", "level", "#",
-           "red 1", "red 2", "red 3",
-           "blue 1", "blue 2", "blue 3",
+           "red 1", "pre", "post",
+           "red 2", "pre", "post",
+           "red 3", "pre", "post",
+           "blue 1", "pre", "post",
+           "blue 2", "pre", "post",
+           "blue 3", "pre", "post",
            "red", "red auto", "red foul",
            "blue", "blue auto", "blue foul")
 
 # Cell classes, positionally matched to db.MATCH_COLUMNS, just to tint the
-# alliance columns so the table is readable.
+# alliance columns so the table is readable. The epa cells keep their alliance
+# tint but get muted text so the team numbers still carry the row.
 CLASSES = ("id", "", "",
-           "red", "red", "red",
-           "blue", "blue", "blue",
+           "red", "red epa", "red epa",
+           "red", "red epa", "red epa",
+           "red", "red epa", "red epa",
+           "blue", "blue epa", "blue epa",
+           "blue", "blue epa", "blue epa",
+           "blue", "blue epa", "blue epa",
            "red", "red", "red",
            "blue", "blue", "blue")
 
@@ -40,6 +50,7 @@ th {{ background: #eee; }}
 td.id {{ text-align: left; }}
 td.red {{ background: #ffe6e6; }}
 td.blue {{ background: #e6e6ff; }}
+td.epa {{ color: #666; }}
 </style>
 </head>
 <body>
